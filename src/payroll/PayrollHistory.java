@@ -83,6 +83,104 @@ public class PayrollHistory {
     }
 
     /**
+     * Finds a single payslip by its reference ID (case-insensitive).
+     * Returns null if not found.
+     */
+    public Payslip findPayslipById(String payslipId) {
+        if (payslipId == null || payslipId.trim().isEmpty()) {
+            return null;
+        }
+        for (Payslip p : historyList) {
+            if (p.getPayslipId().equalsIgnoreCase(payslipId.trim())) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Searches for payslips by employee name substring (case-insensitive).
+     */
+    public List<Payslip> searchByEmployeeName(String nameQuery) {
+        if (nameQuery == null || nameQuery.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String query = nameQuery.trim().toLowerCase();
+        List<Payslip> matches = new ArrayList<>();
+        for (Payslip p : historyList) {
+            if (p.getEmployeeName().toLowerCase().contains(query)) {
+                matches.add(p);
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
+    /**
+     * Filters payslips by department name (case-insensitive).
+     */
+    public List<Payslip> getHistoryByDepartment(String department) {
+        if (department == null || department.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String deptQuery = department.trim().toLowerCase();
+        List<Payslip> matches = new ArrayList<>();
+        for (Payslip p : historyList) {
+            if (p.getDepartment().toLowerCase().equalsIgnoreCase(deptQuery)) {
+                matches.add(p);
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
+    /**
+     * Filters payslips by employee type (Full-Time / Part-Time).
+     */
+    public List<Payslip> getHistoryByEmployeeType(String employeeType) {
+        if (employeeType == null || employeeType.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String typeQuery = employeeType.trim().toLowerCase();
+        List<Payslip> matches = new ArrayList<>();
+        for (Payslip p : historyList) {
+            if (p.getEmployeeType().toLowerCase().equalsIgnoreCase(typeQuery)) {
+                matches.add(p);
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
+    /**
+     * Filters payslips for a specific year and month.
+     */
+    public List<Payslip> getHistoryByYearAndMonth(int year, int month) {
+        if (year <= 0 || month < 1 || month > 12) {
+            return Collections.emptyList();
+        }
+        List<Payslip> matches = new ArrayList<>();
+        for (Payslip p : historyList) {
+            if (p.getPayPeriodDate().getYear() == year && p.getPayPeriodDate().getMonthValue() == month) {
+                matches.add(p);
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
+    /**
+     * Returns the most recent N payslips in reverse chronological order.
+     */
+    public List<Payslip> getRecentPayslips(int limit) {
+        if (limit <= 0 || historyList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int count = Math.min(limit, historyList.size());
+        List<Payslip> recent = new ArrayList<>(count);
+        for (int i = historyList.size() - 1; i >= historyList.size() - count; i--) {
+            recent.add(historyList.get(i));
+        }
+        return Collections.unmodifiableList(recent);
+    }
+
+    /**
      * Retrieves the most recently recorded payslip, or null if history is empty.
      */
     public Payslip getLatestPayslip() {

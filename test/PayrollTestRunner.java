@@ -38,6 +38,7 @@ public class PayrollTestRunner {
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryDefensiveGuardsAndRemoval();
         testPayrollHistoryFilteringByEmployeeId();
+        testPayrollHistoryMultiCriteriaSearch();
         testPayrollManagerIntegration();
         testPayrollManagerEmployeeNotFound();
 
@@ -423,6 +424,57 @@ public class PayrollTestRunner {
         assertEquals("Employee 201 has 2 payslips", 2, e1History.size());
         assertEquals("Employee 202 has 1 payslip", 1, e2History.size());
         assertEquals("Employee 999 has 0 payslips", 0, e3History.size());
+    }
+
+    private static void testPayrollHistoryMultiCriteriaSearch() {
+        System.out.println("\n--- Testing Payroll History Multi-Criteria Search Engine ---");
+        PayrollHistory history = new PayrollHistory();
+
+        Employee e1 = new FullTimeEmployee(401, "Diana Prince", "Security", 60000.0);
+        Employee e2 = new PartTimeEmployee(402, "Bruce Wayne", "Management", 80000.0);
+        Employee e3 = new FullTimeEmployee(403, "Barry Allen", "Security", 45000.0);
+
+        java.time.LocalDate nov2026 = java.time.LocalDate.of(2026, 11, 1);
+        java.time.LocalDate oct2026 = java.time.LocalDate.of(2026, 10, 1);
+
+        Payslip s1 = PayslipGenerator.generate(e1, nov2026);
+        Payslip s2 = PayslipGenerator.generate(e2, nov2026);
+        Payslip s3 = PayslipGenerator.generate(e3, oct2026);
+
+        history.addPayslip(s1);
+        history.addPayslip(s2);
+        history.addPayslip(s3);
+
+        // 1. Search by exact ID
+        assertEquals("findPayslipById found", s1, history.findPayslipById(s1.getPayslipId()));
+        assertEquals("findPayslipById case-insensitive", s1, history.findPayslipById(s1.getPayslipId().toLowerCase()));
+        assertTrue("findPayslipById missing returns null", history.findPayslipById("PS-NONEXISTENT") == null);
+
+        // 2. Search by employee name substring
+        assertEquals("Search by name 'Wayne'", 1, history.searchByEmployeeName("Wayne").size());
+        assertEquals("Search by name case-insensitive 'prince'", 1, history.searchByEmployeeName("prince").size());
+        assertEquals("Search by name partial 'a' matches all 3", 3, history.searchByEmployeeName("a").size());
+        assertEquals("Search by non-matching name returns 0", 0, history.searchByEmployeeName("NotFound").size());
+
+        // 3. Search by department
+        assertEquals("Security department has 2 slips", 2, history.getHistoryByDepartment("Security").size());
+        assertEquals("Management department has 1 slip", 1, history.getHistoryByDepartment("management").size());
+        assertEquals("Finance department has 0 slips", 0, history.getHistoryByDepartment("Finance").size());
+
+        // 4. Search by employee type
+        assertEquals("Full-Time has 2 slips", 2, history.getHistoryByEmployeeType("Full-Time").size());
+        assertEquals("Part-Time has 1 slip", 1, history.getHistoryByEmployeeType("Part-Time").size());
+
+        // 5. Search by Year and Month
+        assertEquals("Nov 2026 has 2 slips", 2, history.getHistoryByYearAndMonth(2026, 11).size());
+        assertEquals("Oct 2026 has 1 slip", 1, history.getHistoryByYearAndMonth(2026, 10).size());
+        assertEquals("Dec 2026 has 0 slips", 0, history.getHistoryByYearAndMonth(2026, 12).size());
+
+        // 6. Recent payslips
+        List<Payslip> recent2 = history.getRecentPayslips(2);
+        assertEquals("Recent 2 returned", 2, recent2.size());
+        assertEquals("Most recent is s3", s3, recent2.get(0));
+        assertEquals("Second most recent is s2", s2, recent2.get(1));
     }
 
     private static void testPayrollManagerIntegration() {
