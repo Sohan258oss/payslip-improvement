@@ -42,6 +42,7 @@ public class PayrollTestRunner {
         testPayrollHistoryAnalyticsAndFinancialSummary();
         testPayrollManagerIntegration();
         testPayrollManagerRobustValidationAndPeriodSupport();
+        testPayrollManagerBatchPayrollProcessing();
         testPayrollManagerEmployeeNotFound();
 
         System.out.println("\n===============================================================");
@@ -591,6 +592,43 @@ public class PayrollTestRunner {
             assertEquals("Direct generation preserves ID", 602, directSlip.getEmployeeId());
         } catch (Exception e) {
             assertTrue("Failed direct employee generation: " + e.getMessage(), false);
+        }
+    }
+
+    private static void testPayrollManagerBatchPayrollProcessing() {
+        System.out.println("\n--- Testing Payroll Manager Batch Payroll Processing ---");
+        EmployeeManager empMgr = new EmployeeManager();
+        PayrollHistory history = new PayrollHistory();
+        PayrollManager manager = new PayrollManager(empMgr, history);
+
+        // Test bulk on empty employee registry
+        List<Payslip> emptyBatch = manager.generatePayrollForAll();
+        assertEquals("Empty registry yields empty batch", 0, emptyBatch.size());
+
+        try {
+            // Register 3 employees across 2 departments
+            empMgr.addEmployee(new FullTimeEmployee(701, "Clark Kent", "Journalism", 70000.0));
+            empMgr.addEmployee(new PartTimeEmployee(702, "Lois Lane", "Journalism", 45000.0));
+            empMgr.addEmployee(new FullTimeEmployee(703, "Jimmy Olsen", "Photography", 35000.0));
+
+            // Run batch for all
+            java.time.LocalDate novPeriod = java.time.LocalDate.of(2026, 11, 30);
+            List<Payslip> batch = manager.generatePayrollForAll(novPeriod);
+
+            assertEquals("Batch generated 3 payslips", 3, batch.size());
+            assertEquals("History holds all 3 batch slips", 3, history.getRecordCount());
+
+            // Run department specific batch for Journalism with different month
+            java.time.LocalDate decPeriod = java.time.LocalDate.of(2026, 12, 31);
+            List<Payslip> deptBatch = manager.generatePayrollForDepartment("Journalism", decPeriod);
+            assertEquals("Department batch generated 2 slips", 2, deptBatch.size());
+            assertEquals("History now holds 5 slips", 5, history.getRecordCount());
+
+            // Non-existent department
+            List<Payslip> noDept = manager.generatePayrollForDepartment("Aviation", decPeriod);
+            assertEquals("Non-existent department returns 0 slips", 0, noDept.size());
+        } catch (Exception e) {
+            assertTrue("Batch processing failed unexpectedly: " + e.getMessage(), false);
         }
     }
 

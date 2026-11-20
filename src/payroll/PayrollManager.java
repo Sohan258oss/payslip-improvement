@@ -76,6 +76,84 @@ public class PayrollManager {
     }
 
     /**
+     * Generates payslips for all registered employees in the EmployeeManager using current date.
+     *
+     * @return List of newly generated payslips.
+     */
+    public java.util.List<Payslip> generatePayrollForAll() {
+        return generatePayrollForAll(LocalDate.now());
+    }
+
+    /**
+     * Generates payslips for all registered employees for a specific pay period date.
+     *
+     * @param payPeriodDate The explicit pay period date.
+     * @return List of newly generated payslips.
+     */
+    public java.util.List<Payslip> generatePayrollForAll(LocalDate payPeriodDate) {
+        java.util.List<Employee> employees = employeeManager.getAllEmployees();
+        if (employees.isEmpty()) {
+            System.out.println("\n[!] No employees registered in the system for bulk payroll generation.");
+            return java.util.Collections.emptyList();
+        }
+
+        System.out.println("\n>>> Initiating Batch Payroll Processing for " + employees.size() + " Employees <<<");
+        java.util.List<Payslip> generated = new java.util.ArrayList<>();
+        double totalDisbursed = 0.0;
+
+        for (Employee emp : employees) {
+            try {
+                Payslip slip = PayslipGenerator.generate(emp, payPeriodDate);
+                payrollHistory.addPayslip(slip);
+                generated.add(slip);
+                totalDisbursed += slip.getNetSalary();
+            } catch (Exception e) {
+                System.err.printf("[!] Error generating payslip for Employee ID %d (%s): %s\n",
+                        emp.getId(), emp.getName(), e.getMessage());
+            }
+        }
+
+        System.out.printf("\n[+] Batch Payroll Completed: %d/%d payslips generated successfully.\n",
+                generated.size(), employees.size());
+        System.out.printf("[+] Total Batch Net Payout: Rs. %.2f\n", totalDisbursed);
+
+        return java.util.Collections.unmodifiableList(generated);
+    }
+
+    /**
+     * Generates payslips for all employees belonging to a specific department.
+     */
+    public java.util.List<Payslip> generatePayrollForDepartment(String department, LocalDate payPeriodDate) {
+        if (department == null || department.trim().isEmpty()) {
+            System.out.println("[!] Department name cannot be null or empty.");
+            return java.util.Collections.emptyList();
+        }
+
+        java.util.List<Employee> allEmployees = employeeManager.getAllEmployees();
+        java.util.List<Employee> deptEmployees = new java.util.ArrayList<>();
+        for (Employee e : allEmployees) {
+            if (e.getDepartment().equalsIgnoreCase(department.trim())) {
+                deptEmployees.add(e);
+            }
+        }
+
+        if (deptEmployees.isEmpty()) {
+            System.out.println("\n[!] No employees found in department: " + department);
+            return java.util.Collections.emptyList();
+        }
+
+        System.out.println("\n>>> Generating Department Payroll for '" + department + "' (" + deptEmployees.size() + " employees) <<<");
+        java.util.List<Payslip> generated = new java.util.ArrayList<>();
+        for (Employee emp : deptEmployees) {
+            Payslip slip = PayslipGenerator.generate(emp, payPeriodDate);
+            payrollHistory.addPayslip(slip);
+            generated.add(slip);
+        }
+        System.out.printf("[+] Department '%s' Payroll Completed: %d payslips generated.\n", department, generated.size());
+        return java.util.Collections.unmodifiableList(generated);
+    }
+
+    /**
      * Displays complete payroll history accompanied by cumulative financial metrics.
      */
     public void viewPayrollHistory() {
