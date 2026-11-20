@@ -30,6 +30,7 @@ public class PayrollTestRunner {
         testPartTimeEmployeePayslipCalculations();
         testHighBracketPartTimeEmployeePayslip();
         testPayslipTemporalAndOrdering();
+        testPayslipDataValidationAndInvariants();
         testPayslipGeneratorSequencing();
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryFilteringByEmployeeId();
@@ -148,6 +149,67 @@ public class PayrollTestRunner {
         assertTrue("Natural ordering s1 < s2", s1.compareTo(s2) < 0);
         assertTrue("Natural ordering s2 > s1", s2.compareTo(s1) > 0);
         assertTrue("Self comparison s1 == s1", s1.compareTo(s1) == 0);
+    }
+
+    private static void testPayslipDataValidationAndInvariants() {
+        System.out.println("\n--- Testing Payslip Validation & Invariant Enforcement ---");
+
+        // Test 1: Zero / Negative Employee ID
+        boolean caughtInvalidId = false;
+        try {
+            new Payslip("PS-1", 0, "Test", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+        } catch (IllegalArgumentException e) {
+            caughtInvalidId = true;
+        }
+        assertTrue("Reject zero employee ID", caughtInvalidId);
+
+        // Test 2: Null / Empty Employee Name
+        boolean caughtEmptyName = false;
+        try {
+            new Payslip("PS-1", 10, "   ", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+        } catch (IllegalArgumentException e) {
+            caughtEmptyName = true;
+        }
+        assertTrue("Reject empty employee name", caughtEmptyName);
+
+        // Test 3: Negative Salary
+        boolean caughtNegativeSalary = false;
+        try {
+            new Payslip("PS-1", 10, "Test", "IT", "Full-Time", -50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+        } catch (IllegalArgumentException e) {
+            caughtNegativeSalary = true;
+        }
+        assertTrue("Reject negative salary", caughtNegativeSalary);
+
+        // Test 4: Broken Gross Invariant (Basic + HRA + DA != Gross)
+        boolean caughtGrossMismatch = false;
+        try {
+            // Gross specified as 99999 instead of 65000
+            new Payslip("PS-1", 10, "Test", "IT", "Full-Time", 50000, 10000, 5000, 99999, 6000, 6500, 12500, 52500);
+        } catch (IllegalArgumentException e) {
+            caughtGrossMismatch = true;
+        }
+        assertTrue("Reject gross invariant mismatch", caughtGrossMismatch);
+
+        // Test 5: Broken Deductions Invariant (PF + Tax != Deductions)
+        boolean caughtDeductionsMismatch = false;
+        try {
+            // Deductions specified as 5000 instead of 12500
+            new Payslip("PS-1", 10, "Test", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 5000, 52500);
+        } catch (IllegalArgumentException e) {
+            caughtDeductionsMismatch = true;
+        }
+        assertTrue("Reject deductions invariant mismatch", caughtDeductionsMismatch);
+
+        // Test 6: Broken Net Invariant (Gross - Deductions != Net)
+        boolean caughtNetMismatch = false;
+        try {
+            // Net specified as 40000 instead of 52500
+            new Payslip("PS-1", 10, "Test", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 12500, 40000);
+        } catch (IllegalArgumentException e) {
+            caughtNetMismatch = true;
+        }
+        assertTrue("Reject net salary invariant mismatch", caughtNetMismatch);
     }
 
     private static void testPayslipGeneratorSequencing() {

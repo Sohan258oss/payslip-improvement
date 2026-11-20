@@ -11,11 +11,13 @@ import java.time.format.DateTimeFormatter;
  * Implements:
  * - Immutability: All attributes are private final to preserve audit trail integrity.
  * - Temporal Support: Captures both the operational pay period date and exact generation timestamp.
+ * - Data Validation: Strictly validates input parameters and mathematical invariants.
  * - Comparable: Natural ordering based on generation timestamp and payslip ID.
  */
 public class Payslip implements Comparable<Payslip> {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
     private static final DateTimeFormatter PERIOD_FORMATTER = DateTimeFormatter.ofPattern("MMMM yyyy");
+    private static final double INVARIANT_TOLERANCE = 0.05;
 
     private final String payslipId;
     private final int employeeId;
@@ -35,17 +37,40 @@ public class Payslip implements Comparable<Payslip> {
     private final String generationDate;
 
     /**
-     * Primary Constructor with explicit pay period date.
+     * Primary Constructor with validation and explicit pay period date.
      */
     public Payslip(String payslipId, int employeeId, String employeeName, String department,
                    String employeeType, double basicSalary, double hra, double da,
                    double grossSalary, double pf, double tax, double totalDeductions,
                    double netSalary, LocalDate payPeriodDate) {
-        this.payslipId = payslipId;
+
+        // Validate identifiers and text metadata
+        validateNonEmptyString(payslipId, "Payslip ID");
+        if (employeeId <= 0) {
+            throw new IllegalArgumentException("Employee ID must be strictly positive (> 0). Given: " + employeeId);
+        }
+        validateNonEmptyString(employeeName, "Employee name");
+        validateNonEmptyString(department, "Department");
+        validateNonEmptyString(employeeType, "Employee type");
+
+        // Validate monetary values
+        validateAmount(basicSalary, "Basic salary");
+        validateAmount(hra, "HRA");
+        validateAmount(da, "DA");
+        validateAmount(grossSalary, "Gross salary");
+        validateAmount(pf, "PF");
+        validateAmount(tax, "Tax");
+        validateAmount(totalDeductions, "Total deductions");
+        validateAmount(netSalary, "Net salary");
+
+        // Validate mathematical consistency invariants
+        validateInvariants(basicSalary, hra, da, grossSalary, pf, tax, totalDeductions, netSalary);
+
+        this.payslipId = payslipId.trim();
         this.employeeId = employeeId;
-        this.employeeName = employeeName;
-        this.department = department;
-        this.employeeType = employeeType;
+        this.employeeName = employeeName.trim();
+        this.department = department.trim();
+        this.employeeType = employeeType.trim();
         this.basicSalary = basicSalary;
         this.hra = hra;
         this.da = da;
@@ -69,6 +94,46 @@ public class Payslip implements Comparable<Payslip> {
         this(payslipId, employeeId, employeeName, department, employeeType,
              basicSalary, hra, da, grossSalary, pf, tax, totalDeductions,
              netSalary, LocalDate.now());
+    }
+
+    // Defensive validation helpers
+    private static void validateNonEmptyString(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " cannot be null or empty.");
+        }
+    }
+
+    private static void validateAmount(double amount, String fieldName) {
+        if (Double.isNaN(amount) || Double.isInfinite(amount)) {
+            throw new IllegalArgumentException(fieldName + " cannot be NaN or Infinite.");
+        }
+        if (amount < 0.0) {
+            throw new IllegalArgumentException(fieldName + " cannot be negative. Given: " + amount);
+        }
+    }
+
+    private static void validateInvariants(double basic, double hra, double da, double gross,
+                                           double pf, double tax, double deductions, double net) {
+        double expectedGross = basic + hra + da;
+        if (Math.abs(gross - expectedGross) > INVARIANT_TOLERANCE) {
+            throw new IllegalArgumentException(String.format(
+                    "Mathematical invariant error: Gross (%.2f) != Basic (%.2f) + HRA (%.2f) + DA (%.2f) = %.2f",
+                    gross, basic, hra, da, expectedGross));
+        }
+
+        double expectedDeductions = pf + tax;
+        if (Math.abs(deductions - expectedDeductions) > INVARIANT_TOLERANCE) {
+            throw new IllegalArgumentException(String.format(
+                    "Mathematical invariant error: Total Deductions (%.2f) != PF (%.2f) + Tax (%.2f) = %.2f",
+                    deductions, pf, tax, expectedDeductions));
+        }
+
+        double expectedNet = gross - deductions;
+        if (Math.abs(net - expectedNet) > INVARIANT_TOLERANCE) {
+            throw new IllegalArgumentException(String.format(
+                    "Mathematical invariant error: Net Salary (%.2f) != Gross (%.2f) - Deductions (%.2f) = %.2f",
+                    net, gross, deductions, expectedNet));
+        }
     }
 
     // Getters
