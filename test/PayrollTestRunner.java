@@ -34,6 +34,7 @@ public class PayrollTestRunner {
         testPayslipEqualsAndHashCode();
         testPayslipFormattingAndAlignment();
         testPayslipGeneratorSequencing();
+        testPayslipGeneratorConcurrencyAndIdManagement();
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryFilteringByEmployeeId();
         testPayrollManagerIntegration();
@@ -289,6 +290,49 @@ public class PayrollTestRunner {
         assertTrue("Payslip 1 ID not null", s1.getPayslipId() != null);
         assertTrue("Payslip 2 ID not null", s2.getPayslipId() != null);
         assertTrue("Sequential ID generation", !s1.getPayslipId().equals(s2.getPayslipId()));
+    }
+
+    private static void testPayslipGeneratorConcurrencyAndIdManagement() {
+        System.out.println("\n--- Testing PayslipGenerator ID Management and Concurrency ---");
+        PayslipGenerator.resetCounter();
+        assertEquals("Initial counter reset to 1001", 1001, PayslipGenerator.getCurrentCounter());
+        assertEquals("Peek next ID is PS-1001", "PS-1001", PayslipGenerator.peekNextId());
+
+        // Test explicit pay period generation
+        Employee emp = new FullTimeEmployee(109, "Pay Period Test", "Finance", 50000.0);
+        java.time.LocalDate targetPeriod = java.time.LocalDate.of(2025, 12, 1);
+        Payslip periodSlip = PayslipGenerator.generate(emp, targetPeriod);
+        assertEquals("Explicit pay period preserved", targetPeriod, periodSlip.getPayPeriodDate());
+        assertEquals("Explicit pay period format", "December 2025", periodSlip.getFormattedPayPeriod());
+
+        // Concurrency test: 10 threads generating 20 IDs each = 200 IDs
+        final int threadCount = 10;
+        final int iterationsPerThread = 20;
+        final java.util.Set<String> generatedIds = java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+        Thread[] threads = new Thread[threadCount];
+
+        for (int i = 0; i < threadCount; i++) {
+            threads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int j = 0; j < iterationsPerThread; j++) {
+                        generatedIds.add(PayslipGenerator.generateNextId());
+                    }
+                }
+            });
+            threads[i].start();
+        }
+
+        for (int i = 0; i < threadCount; i++) {
+            try {
+                threads[i].join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        assertEquals("No duplicate IDs generated concurrently (total unique: 200)",
+                threadCount * iterationsPerThread, generatedIds.size());
     }
 
     private static void testPayrollHistoryStorageAndRetrieval() {
