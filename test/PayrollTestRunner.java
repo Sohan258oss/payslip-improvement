@@ -43,6 +43,8 @@ public class PayrollTestRunner {
         testPayrollManagerIntegration();
         testPayrollManagerRobustValidationAndPeriodSupport();
         testPayrollManagerBatchPayrollProcessing();
+        testTaxBoundarySlabsAndDecimalPrecision();
+        testHighVolumeStressAndHistoryIntegrity();
         testPayrollManagerEmployeeNotFound();
 
         System.out.println("\n===============================================================");
@@ -630,6 +632,65 @@ public class PayrollTestRunner {
         } catch (Exception e) {
             assertTrue("Batch processing failed unexpectedly: " + e.getMessage(), false);
         }
+    }
+
+    private static void testTaxBoundarySlabsAndDecimalPrecision() {
+        System.out.println("\n--- Testing Tax Boundary Slabs & Decimal Precision ---");
+
+        // Boundary Case 1: Gross exactly <= 50,000 -> 0% Tax
+        // Part-time with basic 35,000 -> HRA (20%): 7,000 -> Gross: 42,000 <= 50,000 -> Tax = 0
+        Employee ptLow = new PartTimeEmployee(801, "Low Earner", "Support", 35000.0);
+        Payslip sLow = PayslipGenerator.generate(ptLow);
+        assertEquals("Gross <= 50k has 0 tax", 0.0, sLow.getTax());
+
+        // Boundary Case 2: Gross in 50,001 to 100,000 -> 10% Tax
+        // Full-time with basic 50,000 -> HRA 10k, DA 5k -> Gross: 65,000 -> Tax 10% = 6,500
+        Employee ftMid = new FullTimeEmployee(802, "Mid Earner", "Sales", 50000.0);
+        Payslip sMid = PayslipGenerator.generate(ftMid);
+        assertEquals("Gross 65k has 10% tax", 6500.0, sMid.getTax());
+
+        // Boundary Case 3: Gross > 100,000 -> 20% Tax
+        // Full-time with basic 80,000 -> HRA 16k, DA 8k -> Gross: 104,000 -> Tax 20% = 20,800
+        Employee ftHigh = new FullTimeEmployee(803, "High Earner", "Executive", 80000.0);
+        Payslip sHigh = PayslipGenerator.generate(ftHigh);
+        assertEquals("Gross 104k has 20% tax", 20800.0, sHigh.getTax());
+
+        // Decimal Precision Case: cents and uneven numbers
+        // Basic = 54321.50 -> FT HRA: 10864.30, DA: 5432.15, Gross: 70617.95
+        // PF (12%): 6518.58, Tax (10% of 70617.95): 7061.795 -> Total Ded: 13580.375, Net: 57037.575
+        Employee ftCents = new FullTimeEmployee(804, "Cents Earner", "Finance", 54321.50);
+        Payslip sCents = PayslipGenerator.generate(ftCents);
+        assertEquals("Basic salary with cents", 54321.50, sCents.getBasicSalary());
+        assertEquals("Gross with cents", 70617.95, sCents.getGrossSalary());
+        assertEquals("PF with cents", 6518.58, sCents.getPf());
+        assertTrue("Net salary calculation valid within invariant tolerance",
+                Math.abs(sCents.getNetSalary() - (sCents.getGrossSalary() - sCents.getTotalDeductions())) < 0.05);
+    }
+
+    private static void testHighVolumeStressAndHistoryIntegrity() {
+        System.out.println("\n--- Testing High-Volume Stress & History Integrity ---");
+        PayrollHistory stressHistory = new PayrollHistory();
+        final int volume = 500;
+
+        for (int i = 1; i <= volume; i++) {
+            Employee e = (i % 2 == 0)
+                    ? new FullTimeEmployee(1000 + i, "Emp " + i, "Dept " + (i % 5), 50000.0 + (i * 10))
+                    : new PartTimeEmployee(1000 + i, "Emp " + i, "Dept " + (i % 5), 40000.0 + (i * 10));
+            Payslip slip = PayslipGenerator.generate(e);
+            stressHistory.addPayslip(slip);
+        }
+
+        assertEquals("History recorded all 500 records", volume, stressHistory.getRecordCount());
+        assertTrue("Total gross disbursed is positive", stressHistory.getTotalGrossDisbursed() > 0);
+        assertTrue("Total net paid is positive", stressHistory.getTotalNetPaid() > 0);
+        assertTrue("Average net salary is positive", stressHistory.getAverageNetSalary() > 0);
+
+        // Verify retrieval performance and accuracy
+        List<Payslip> dept0 = stressHistory.getHistoryByDepartment("Dept 0");
+        assertEquals("Dept 0 has exactly 100 records (500 / 5)", 100, dept0.size());
+
+        List<Payslip> recent10 = stressHistory.getRecentPayslips(10);
+        assertEquals("Recent 10 retrieved correctly", 10, recent10.size());
     }
 
     private static void testPayrollManagerEmployeeNotFound() {
