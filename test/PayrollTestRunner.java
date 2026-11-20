@@ -32,6 +32,7 @@ public class PayrollTestRunner {
         testPayslipTemporalAndOrdering();
         testPayslipDataValidationAndInvariants();
         testPayslipEqualsAndHashCode();
+        testPayslipFormattingAndAlignment();
         testPayslipGeneratorSequencing();
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryFilteringByEmployeeId();
@@ -239,6 +240,42 @@ public class PayrollTestRunner {
         set.add(p1Same); // should be deduplicated
         set.add(p2DifferentId);
         assertEquals("HashSet size is 2 after adding duplicate", 2, set.size());
+    }
+
+    private static void testPayslipFormattingAndAlignment() {
+        System.out.println("\n--- Testing Payslip Box-Drawing Alignment & Formatting ---");
+        Payslip normal = new Payslip("PS-1001", 101, "Alice Johnson", "Engineering", "Full-Time",
+                60000.0, 12000.0, 6000.0, 78000.0, 7200.0, 7800.0, 15000.0, 63000.0);
+        String formatted = normal.getFormattedPayslip();
+
+        assertTrue("Formatted slip contains header", formatted.contains("EMPLOYEE PAYSLIP"));
+        assertTrue("Formatted slip contains basic salary", formatted.contains("Basic Salary:"));
+        assertTrue("Formatted slip contains net payable", formatted.contains("NET PAYABLE SALARY:"));
+
+        // Verify every line in the formatted slip is exactly 63 characters wide
+        String[] lines = formatted.trim().split("\n");
+        boolean all63 = true;
+        for (String line : lines) {
+            if (line.length() != 63) {
+                all63 = false;
+                System.err.printf("Misaligned line (len %d): '%s'\n", line.length(), line);
+            }
+        }
+        assertTrue("All formatted payslip lines are exactly 63 chars wide", all63);
+
+        // Test with extraordinarily long employee name and department
+        Payslip longNameSlip = new Payslip("PS-9999", 999,
+                "Alexander Maximilian Bartholomew", "Department of Advanced Research and Robotics",
+                "Full-Time", 80000.0, 16000.0, 8000.0, 104000.0, 9600.0, 20800.0, 30400.0, 73600.0);
+        String longFormatted = longNameSlip.getFormattedPayslip();
+        String[] longLines = longFormatted.trim().split("\n");
+        boolean longAll63 = true;
+        for (String line : longLines) {
+            if (line.length() != 63) {
+                longAll63 = false;
+            }
+        }
+        assertTrue("Long metadata safely truncated without breaking 63 char border", longAll63);
     }
 
     private static void testPayslipGeneratorSequencing() {

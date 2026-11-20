@@ -159,25 +159,45 @@ public class Payslip implements Comparable<Payslip> {
         return payPeriodDate.format(PERIOD_FORMATTER);
     }
 
+    private static String fitString(String text, int maxLength) {
+        if (text == null) return "";
+        if (text.length() <= maxLength) return text;
+        return text.substring(0, maxLength - 2) + "..";
+    }
+
+    /**
+     * Formats the payslip into a perfectly aligned ASCII card representation.
+     */
+    public String getFormattedPayslip() {
+        StringBuilder sb = new StringBuilder();
+        String daLabel = employeeType.equalsIgnoreCase("Full-Time") ? "10%" : " 0%";
+        String truncName = fitString(employeeName, 19);
+        String truncDept = fitString(department, 15);
+        String truncType = fitString(employeeType, 19);
+        String truncId = fitString(payslipId, 15);
+
+        sb.append("\n+-------------------------------------------------------------+\n");
+        sb.append("|                      EMPLOYEE PAYSLIP                       |\n");
+        sb.append("+-------------------------------------------------------------+\n");
+        sb.append(String.format("| Payslip ID:  %-15s Date:      %-19s |\n", truncId, generationDate));
+        sb.append(String.format("| Employee ID: %-15d Name:      %-19s |\n", employeeId, truncName));
+        sb.append(String.format("| Department:  %-15s Type:      %-19s |\n", truncDept, truncType));
+        sb.append("+------------------------------+------------------------------+\n");
+        sb.append("| EARNINGS                     | DEDUCTIONS                   |\n");
+        sb.append("+------------------------------+------------------------------+\n");
+        sb.append(String.format("| Basic Salary:   %11.2f  | Provident Fund: %11.2f  |\n", basicSalary, pf));
+        sb.append(String.format("| HRA (20%%):      %11.2f  | Income Tax:     %11.2f  |\n", hra, tax));
+        sb.append(String.format("| DA (%s):       %11.2f  |                              |\n", daLabel, da));
+        sb.append("+------------------------------+------------------------------+\n");
+        sb.append(String.format("| Gross Salary:   %11.2f  | Total Deduct:   %11.2f  |\n", grossSalary, totalDeductions));
+        sb.append("+------------------------------+------------------------------+\n");
+        sb.append(String.format("| NET PAYABLE SALARY:                  Rs. %18.2f |\n", netSalary));
+        sb.append("+-------------------------------------------------------------+");
+        return sb.toString();
+    }
+
     public void printPayslip() {
-        System.out.println("\n+-------------------------------------------------------------+");
-        System.out.println("|                    EMPLOYEE PAYSLIP                         |");
-        System.out.println("+-------------------------------------------------------------+");
-        System.out.printf("| Payslip ID: %-15s Date: %-22s |\n", payslipId, generationDate);
-        System.out.printf("| Employee ID: %-14d Name: %-22s |\n", employeeId, employeeName);
-        System.out.printf("| Department: %-15s Type: %-22s |\n", department, employeeType);
-        System.out.println("+------------------------------+------------------------------+");
-        System.out.println("| EARNINGS                     | DEDUCTIONS                   |");
-        System.out.println("+------------------------------+------------------------------+");
-        System.out.printf("| Basic Salary:  %12.2f  | Provident Fund (PF):%8.2f |\n", basicSalary, pf);
-        System.out.printf("| HRA (20%%):    %12.2f  | Income Tax:         %8.2f |\n", hra, tax);
-        System.out.printf("| DA (%s):      %12.2f  |                              |\n",
-                employeeType.equalsIgnoreCase("Full-Time") ? "10%" : " 0%", da);
-        System.out.println("+------------------------------+------------------------------+");
-        System.out.printf("| Gross Salary:  %12.2f  | Total Deductions:   %8.2f |\n", grossSalary, totalDeductions);
-        System.out.println("+------------------------------+------------------------------+");
-        System.out.printf("| NET PAYABLE SALARY:                   Rs. %17.2f |\n", netSalary);
-        System.out.println("+-------------------------------------------------------------+");
+        System.out.println(getFormattedPayslip());
     }
 
     @Override
