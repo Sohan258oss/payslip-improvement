@@ -13,8 +13,9 @@ The Employee Payroll Management System provides a clean, robust, and beginner-fr
 - Dearness Allowance (DA)
 - Provident Fund (PF)
 - Slab-based Income Tax deductions
-- Detailed printable Payslips
-- Historical transaction logging
+- Detailed printable Payslips with ASCII box-drawing
+- Historical transaction logging, searching, and financial summary analytics
+- Batch payroll processing for organizations and departments
 
 ---
 
@@ -24,9 +25,11 @@ The Employee Payroll Management System provides a clean, robust, and beginner-fr
 2. **View Employees**: Display all registered employees in a clean tabular view directly from the custom singly linked list.
 3. **Search Employee**: Search for an employee by ID and view complete profile details and current salary breakdown.
 4. **Remove Employee**: Unlink and delete an employee record by ID with proper exception handling if not found.
-5. **Generate Payslip**: Calculate gross earnings, deductions, and net salary, printing a formatted payslip and saving the transaction to payroll history.
-6. **View Payroll History**: View all generated payslips across sessions using Java Collections (`ArrayList`).
-7. **Input Validation**: Clean handling of invalid numeric inputs, negative salaries, duplicate records, and non-existent IDs.
+5. **Generate Payslip**: Calculate gross earnings, deductions, and net salary, printing a formatted ASCII payslip card and saving the transaction to payroll history.
+6. **View Payroll History**: View all generated payslips across sessions using Java Collections (`ArrayList`), accompanied by cumulative financial metrics.
+7. **Multi-Criteria History Search**: Query transaction history by Payslip ID, employee ID, employee name substring, department, employee type, or year/month.
+8. **Batch Payroll Generation**: Generate payroll for all registered employees or specific departments in one unified operation.
+9. **Input Validation**: Clean handling of invalid numeric inputs, negative salaries, duplicate records, and non-existent IDs.
 
 ---
 
@@ -58,6 +61,8 @@ EmployeePayrollManagement/
 │   │   ├── InvalidSalaryException.java
 │   │   └── EmployeeNotFoundException.java
 │   └── Main.java
+├── test/
+│   └── PayrollTestRunner.java
 └── README.md
 ```
 
@@ -67,16 +72,18 @@ EmployeePayrollManagement/
 
 - **Abstraction**:
   - `Employee` is an abstract base class defining the contract for employee behavior (`calculateAllowance()`, `calculateDeduction()`, `calculateGrossSalary()`, `calculateNetSalary()`, `getEmployeeType()`).
-  - Implementation details are hidden from callers like `EmployeeManager` and `Main`.
-- **Encapsulation**:
-  - All domain fields (e.g., `id`, `name`, `basicSalary`, `hra`, `da`, `pf`, `tax`) are declared `private`.
+  - Implementation details are hidden from callers like `EmployeeManager`, `PayrollManager`, and `Main`.
+- **Encapsulation & Immutability**:
+  - All domain fields across `Employee`, `Salary`, `Allowance`, `Deduction`, and `Payslip` are declared `private` or `private final`.
   - Controlled read and write access is exposed via public getter and setter methods.
+  - `Payslip` is designed as an immutable Value Object where all fields are `private final` to ensure historical records cannot be modified after generation.
 - **Inheritance**:
   - `FullTimeEmployee` and `PartTimeEmployee` inherit core attributes and common methods from the `Employee` base class using the `extends` keyword.
   - Custom exceptions inherit from `java.lang.Exception`.
 - **Polymorphism**:
   - Dynamic Method Dispatch (Runtime Polymorphism): `FullTimeEmployee` and `PartTimeEmployee` provide specialized implementations for `calculateAllowance()` and `getEmployeeType()`.
   - Calling `employee.calculateNetSalary()` executes the appropriate subclass logic dynamically.
+  - `Payslip` implements `Comparable<Payslip>` to provide natural chronological ordering.
 
 ---
 
@@ -103,7 +110,13 @@ To fulfill academic and faculty requirements, employee records are stored in a *
 
 - **`ArrayList<Payslip>`** in `PayrollHistory.java`:
   - Used meaningfully to maintain chronological records of all generated payslips.
-  - Provides dynamic array resizing, random access, and filtering by employee ID.
+  - Provides dynamic array resizing, $O(1)$ random access, and indexed iteration.
+  - Protected by `Collections.unmodifiableList(historyList)` to return read-only collection views and prevent external mutation.
+  - Implements duplicate ID guard checking before insertion to maintain relational integrity.
+- **`Comparable<Payslip>`** & Sorting:
+  - `Payslip` implements `Comparable<Payslip>` enabling natural sorting by pay period date and payslip ID.
+- **`Set` & `Map` Compatibility**:
+  - `Payslip` overrides `equals(Object o)` and `hashCode()` based on `payslipId` and `employeeId`, allowing seamless integration with `HashSet`, `HashMap`, and collections algorithms.
 
 ---
 
@@ -151,7 +164,92 @@ The financial logic is strictly consistent across the entire application:
 
 ---
 
-## 9. Compilation and Execution Instructions
+## 9. Member 4 Module Deep-Dive: Payslip, Payroll Management & History
+
+Member 4 owns and maintains the payroll generation, formatting, and history tracking infrastructure:
+
+### 1. `Payslip.java` (Domain Entity & Value Object)
+- **Immutability**: All fields are `private final`. Once generated, a payslip cannot be altered, preserving an immutable audit record.
+- **Defensive Invariant Validation**: Constructor validates that:
+  - `employeeId > 0`, non-empty names, non-empty department and type.
+  - All financial amounts are non-negative, finite (no `NaN` or `Infinity`).
+  - Mathematical invariants hold true within 0.05 tolerance:
+    - $\text{Gross} = \text{Basic} + \text{HRA} + \text{DA}$
+    - $\text{Total Deductions} = \text{PF} + \text{Tax}$
+    - $\text{Net Salary} = \text{Gross} - \text{Total Deductions}$
+- **Temporal Tracking**: Stores both operational `LocalDate payPeriodDate` and system timestamp `LocalDateTime generatedAt`.
+- **ASCII Box-Drawing Engine**:
+  - Perfectly aligned 63-character wide card border.
+  - Dynamically truncates overflowing metadata with `..` to guarantee zero border clipping.
+  - Provides `getFormattedPayslip()` returning a printable `String` decoupled from console output.
+
+### 2. `PayslipGenerator.java` (Factory & Sequence Coordinator)
+- **Atomic Thread-Safety**: Replaces standard static integer increments with `java.util.concurrent.atomic.AtomicInteger` (`payslipCounter.getAndIncrement()`), ensuring lock-free concurrency safety.
+- **Custom Pay Period Dispatch**: Allows generating payslips for the current month or explicit retroactive periods.
+- **Monetary Precision Rounding**: Implements `roundCurrency()` to round components to 2 decimal places (paise/cents) and reconciles half-cent floating-point disparities.
+- **Sequence Inspection**: Provides `peekNextId()`, `getCurrentCounter()`, and `resetCounter()`.
+
+### 3. `PayrollHistory.java` (Archive & Analytics Engine)
+- **Collection Protection**: Uses `ArrayList<Payslip>` backed by `Collections.unmodifiableList()` to prevent external caller tampering.
+- **Integrity Guards**: Prohibits `null` payslips and blocks duplicate payslip IDs from being inserted.
+- **Multi-Criteria Search Engine**:
+  - `findPayslipById(String payslipId)`: Case-insensitive $O(n)$ search.
+  - `searchByEmployeeName(String nameQuery)`: Substring match.
+  - `getHistoryByDepartment(String department)`: Department cohort query.
+  - `getHistoryByEmployeeType(String employeeType)`: Full-Time / Part-Time query.
+  - `getHistoryByYearAndMonth(int year, int month)`: Temporal query.
+  - `getRecentPayslips(int limit)`: Reverse-chronological recent records.
+- **Financial Analytics**: Computes aggregate metrics across the organization:
+  - `getTotalGrossDisbursed()`
+  - `getTotalPfCollected()`
+  - `getTotalTaxCollected()`
+  - `getTotalDeductionsCollected()`
+  - `getTotalNetPaid()`
+  - `getAverageNetSalary()`
+  - `displayFinancialSummary()`: Formatted executive summary card.
+- **Precise 102-Character Table**: Aligns all column widths and headers without row overflow.
+
+### 4. `PayrollManager.java` (High-Level Orchestrator)
+- **Dependency Guarding**: Ensures non-null `EmployeeManager` and `PayrollHistory` references via constructor checks.
+- **Single Payslip Generation**: Looks up employee by ID, verifies existence, delegates calculation, archives in history, and displays formatted slip.
+- **Batch Payroll Generation**:
+  - `generatePayrollForAll(LocalDate payPeriodDate)`: Generates payslips for all active employees in one pass.
+  - `generatePayrollForDepartment(String dept, LocalDate payPeriodDate)`: Generates cohort payroll.
+- **Dashboard Reporting**: Displays both itemized transaction records and cumulative financial summaries.
+
+---
+
+## 10. Automated Test Suite (`test/PayrollTestRunner.java`)
+
+A standalone Core Java test suite verifies the entire payroll module without requiring external testing dependencies (JUnit-free):
+
+### Running the Test Suite:
+```bash
+# Compile everything including tests
+javac -d bin src/exceptions/*.java src/salary/*.java src/deduction/*.java src/employee/*.java src/payroll/*.java src/Main.java test/PayrollTestRunner.java
+
+# Execute test suite
+java -cp bin test.PayrollTestRunner
+```
+
+### Test Coverage Highlights (127 Assertions):
+1. **Full-Time Calculations**: Basic, HRA (20%), DA (10%), Gross, PF (12%), Tax (10%), Total Deductions, Net Salary.
+2. **Part-Time Calculations**: Basic, HRA (20%), DA (0%), Gross, PF (12%), Tax (0% for $\le$ 50k, 20% for $>$ 100k).
+3. **Temporal Support**: Pay period preservation, month/year formatting, `Comparable` ordering.
+4. **Data Validation & Invariants**: Rejection of zero/negative IDs, empty names, negative amounts, broken math invariants.
+5. **Collection Contracts**: Reflexive/symmetric `equals()`, consistent `hashCode()`, duplicate deduplication in `HashSet`.
+6. **Formatting Alignment**: Exact 63-character line width verification, long string overflow truncation.
+7. **Thread Safety**: Multi-threaded concurrency test (10 threads generating 200 IDs concurrently with 0 collisions).
+8. **Defensive History**: Rejection of null slips, duplicate ID prevention, unmodifiable list mutation guard, slip removal, clear history.
+9. **Search Engine**: Exact ID, case-insensitive ID, name substring, department, employee type, year/month, recent limit.
+10. **Financial Analytics**: Total gross, PF, tax, deductions, net, and average net calculations.
+11. **Manager Batch Processing**: Organization-wide batch generation, department-specific batch, empty registry handling.
+12. **Tax Boundary Slabs**: Gross $\le$ 50k (0%), Gross 50k–100k (10%), Gross $>$ 100k (20%), floating-point cents precision.
+13. **High-Volume Stress**: 500-payslip stress test verifying throughput, search accuracy, and memory stability.
+
+---
+
+## 11. Compilation and Execution Instructions
 
 ### Prerequisites
 - Java Development Kit (JDK 8 or higher, e.g. JDK 17, 21).
@@ -165,38 +263,40 @@ cd EmployeePayrollManagement
 ### Step 2: Compile All Sources
 Compile all packages into an output directory `bin`:
 ```bash
-# Windows (Command Prompt or PowerShell)
-javac -d bin src/exceptions/*.java src/salary/*.java src/deduction/*.java src/employee/*.java src/payroll/*.java src/Main.java
-
-# macOS / Linux
-javac -d bin src/exceptions/*.java src/salary/*.java src/deduction/*.java src/employee/*.java src/payroll/*.java src/Main.java
+javac -d bin src/exceptions/*.java src/salary/*.java src/deduction/*.java src/employee/*.java src/payroll/*.java src/Main.java test/PayrollTestRunner.java
 ```
 
 ### Step 3: Run the Application
 ```bash
-# Windows / macOS / Linux
 java -cp bin Main
 ```
 
 ---
 
-## 10. Sample Menu Interface
+## 12. College Viva Q&A Guide (Member 4 — Payroll & History)
 
-```text
-===============================================================
-      WELCOME TO EMPLOYEE PAYROLL MANAGEMENT SYSTEM           
-===============================================================
+Use these explanations when presenting to professors, external examiners, or during code defense:
 
-+-------------------------------------------------------------+
-|                         MAIN MENU                           |
-+-------------------------------------------------------------+
-| 1. Add Employee                                             |
-| 2. View Employees                                           |
-| 3. Search Employee                                          |
-| 4. Remove Employee                                          |
-| 5. Generate Payslip                                         |
-| 6. View Payroll History                                     |
-| 7. Exit                                                     |
-+-------------------------------------------------------------+
-Enter your choice (1-7): 
-```
+### Q1: Why is the `Payslip` class designed to be immutable?
+> **Answer**: A payslip is an official financial legal document generated for a specific pay period. Once issued, its earnings, taxes, and net pay figures must never be altered in memory. By marking all attributes `private final` and not exposing setter methods, we guarantee audit trail integrity, prevent accidental data tampering, and make instances inherently thread-safe.
+
+### Q2: How does `PayslipGenerator` ensure thread-safe ID generation without using `synchronized`?
+> **Answer**: `PayslipGenerator` uses `java.util.concurrent.atomic.AtomicInteger`. The method `payslipCounter.getAndIncrement()` relies on low-level CPU Compare-And-Swap (CAS) instructions. This provides lock-free, thread-safe atomic increments with higher throughput than synchronized blocks, completely preventing duplicate payslip IDs even if multiple payroll threads run in parallel.
+
+### Q3: Why did you implement `equals()` and `hashCode()` on `Payslip`?
+> **Answer**: In Java, domain objects placed in collections (`HashSet`, `HashMap`, or searched with `List.contains()`) rely on `equals()` and `hashCode()`. Without overriding them, Java falls back to `Object` reference identity ($==$). We implemented `equals()` and `hashCode()` based on `payslipId` and `employeeId`, ensuring that business equality matches real-world document identity.
+
+### Q4: How does `PayrollHistory` prevent external callers from corrupting its records?
+> **Answer**: `PayrollHistory` uses **defensive encapsulation**. When a caller invokes `getHistory()`, the method returns `Collections.unmodifiableList(historyList)`. If an external class attempts to call `.clear()`, `.add()`, or `.remove()` on that list, Java immediately throws an `UnsupportedOperationException`.
+
+### Q5: What is the purpose of mathematical invariant checks in the `Payslip` constructor?
+> **Answer**: Defensive programming requires that internal object state always remains consistent. If an upstream bug or faulty input calculates a gross salary that does not equal basic + allowances, or deductions that do not equal PF + tax, `Payslip` throws an `IllegalArgumentException`. This prevents invalid financial calculations from ever reaching the database or history archive.
+
+### Q6: What is the time complexity ($O$) of search operations in `PayrollHistory`?
+> **Answer**: Because payslips are stored in an `ArrayList<Payslip>`, linear searches like `findPayslipById()`, `getHistoryByEmployeeId()`, and `searchByEmployeeName()` run in $O(n)$ time where $n$ is the number of payslips. Insertion via `addPayslip()` runs in amortized $O(1)$ time, and indexed access is $O(1)$.
+
+### Q7: How are floating-point monetary discrepancies handled?
+> **Answer**: In IEEE-754 floating-point arithmetic (`double`), decimal fractions can accumulate tiny rounding errors (e.g. $0.1 + 0.2 = 0.30000000000000004$). We implemented a standard `roundCurrency(amount)` method using `Math.round(amount * 100.0) / 100.0` to round all monetary figures to exactly two decimal places (cents/paise) and applied an epsilon tolerance ($\epsilon = 0.05$) during invariant validation.
+
+### Q8: How did you solve table border misalignment in console output?
+> **Answer**: Fixed-width tables often break when strings of varying lengths are printed or when borders have mismatched character counts. We calibrated exact column and separator widths (63 characters for payslip cards, 102 characters for history tables) and introduced string truncation (`fitString()`) that clips strings exceeding column limits with `..`, guaranteeing that ASCII box borders never wobble.
