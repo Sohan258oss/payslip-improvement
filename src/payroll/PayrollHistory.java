@@ -217,7 +217,7 @@ public class PayrollHistory {
         for (Payslip p : historyList) {
             total += p.getGrossSalary();
         }
-        return total;
+        return roundCurrency(total);
     }
 
     public double getTotalPfCollected() {
@@ -225,7 +225,7 @@ public class PayrollHistory {
         for (Payslip p : historyList) {
             total += p.getPf();
         }
-        return total;
+        return roundCurrency(total);
     }
 
     public double getTotalTaxCollected() {
@@ -233,7 +233,7 @@ public class PayrollHistory {
         for (Payslip p : historyList) {
             total += p.getTax();
         }
-        return total;
+        return roundCurrency(total);
     }
 
     public double getTotalDeductionsCollected() {
@@ -241,7 +241,7 @@ public class PayrollHistory {
         for (Payslip p : historyList) {
             total += p.getTotalDeductions();
         }
-        return total;
+        return roundCurrency(total);
     }
 
     public double getTotalNetPaid() {
@@ -249,14 +249,18 @@ public class PayrollHistory {
         for (Payslip p : historyList) {
             total += p.getNetSalary();
         }
-        return total;
+        return roundCurrency(total);
     }
 
     public double getAverageNetSalary() {
         if (historyList.isEmpty()) {
             return 0.0;
         }
-        return getTotalNetPaid() / historyList.size();
+        return roundCurrency(getTotalNetPaid() / historyList.size());
+    }
+
+    private static double roundCurrency(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     /**

@@ -49,6 +49,26 @@ public class PayslipGenerator {
             throw new IllegalStateException("Failed to calculate salary breakdown for employee: " + employee.getName());
         }
 
+        double basic = roundCurrency(salary.getBasicSalary());
+        double hra = roundCurrency(salary.getAllowance().getHra());
+        double da = roundCurrency(salary.getAllowance().getDa());
+        double gross = roundCurrency(salary.getGrossSalary());
+        double pf = roundCurrency(salary.getDeduction().getPf());
+        double tax = roundCurrency(salary.getDeduction().getTax());
+        double totalDeductions = roundCurrency(salary.getDeduction().getTotalDeduction());
+        double net = roundCurrency(salary.getNetSalary());
+
+        // Reconcile minor half-cent rounding disparities
+        if (Math.abs(gross - (basic + hra + da)) > 0.01) {
+            gross = roundCurrency(basic + hra + da);
+        }
+        if (Math.abs(totalDeductions - (pf + tax)) > 0.01) {
+            totalDeductions = roundCurrency(pf + tax);
+        }
+        if (Math.abs(net - (gross - totalDeductions)) > 0.01) {
+            net = roundCurrency(gross - totalDeductions);
+        }
+
         String payslipId = generateNextId();
 
         return new Payslip(
@@ -57,16 +77,23 @@ public class PayslipGenerator {
                 employee.getName(),
                 employee.getDepartment(),
                 employee.getEmployeeType(),
-                salary.getBasicSalary(),
-                salary.getAllowance().getHra(),
-                salary.getAllowance().getDa(),
-                salary.getGrossSalary(),
-                salary.getDeduction().getPf(),
-                salary.getDeduction().getTax(),
-                salary.getDeduction().getTotalDeduction(),
-                salary.getNetSalary(),
+                basic,
+                hra,
+                da,
+                gross,
+                pf,
+                tax,
+                totalDeductions,
+                net,
                 payPeriodDate
         );
+    }
+
+    /**
+     * Standardizes a monetary value to 2 decimal places (paise/cents).
+     */
+    public static double roundCurrency(double amount) {
+        return Math.round(amount * 100.0) / 100.0;
     }
 
     /**
