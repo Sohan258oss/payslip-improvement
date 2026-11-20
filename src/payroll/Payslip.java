@@ -3,6 +3,7 @@ package payroll;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 
 /**
  * Represents an immutable, itemized Payslip for an employee.
@@ -185,6 +186,19 @@ public class Payslip implements Comparable<Payslip> {
         int cmp = this.payPeriodDate.compareTo(other.payPeriodDate);
         if (cmp != 0) return cmp;
         return this.payslipId.compareTo(other.payslipId);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Payslip payslip = (Payslip) o;
+        return employeeId == payslip.employeeId && Objects.equals(payslipId, payslip.payslipId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(payslipId, employeeId);
     }
 
     @Override

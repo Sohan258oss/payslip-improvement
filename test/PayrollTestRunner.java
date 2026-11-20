@@ -31,6 +31,7 @@ public class PayrollTestRunner {
         testHighBracketPartTimeEmployeePayslip();
         testPayslipTemporalAndOrdering();
         testPayslipDataValidationAndInvariants();
+        testPayslipEqualsAndHashCode();
         testPayslipGeneratorSequencing();
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryFilteringByEmployeeId();
@@ -210,6 +211,34 @@ public class PayrollTestRunner {
             caughtNetMismatch = true;
         }
         assertTrue("Reject net salary invariant mismatch", caughtNetMismatch);
+    }
+
+    private static void testPayslipEqualsAndHashCode() {
+        System.out.println("\n--- Testing Payslip Equals and HashCode Contracts ---");
+        Payslip p1 = new Payslip("PS-500", 10, "Sarah Connor", "Defense", "Full-Time",
+                50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+        Payslip p1Same = new Payslip("PS-500", 10, "Sarah Connor", "Defense", "Full-Time",
+                50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+        Payslip p2DifferentId = new Payslip("PS-501", 10, "Sarah Connor", "Defense", "Full-Time",
+                50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500);
+
+        // Reflexive
+        assertTrue("Reflexive equals", p1.equals(p1));
+        // Symmetric
+        assertTrue("Symmetric equals", p1.equals(p1Same) && p1Same.equals(p1));
+        // Hashcode consistency
+        assertEquals("Consistent hashCode for equal objects", p1.hashCode(), p1Same.hashCode());
+        // Inequality
+        assertTrue("Different ID not equal", !p1.equals(p2DifferentId));
+        assertTrue("Not equal to null", !p1.equals(null));
+        assertTrue("Not equal to other type", !p1.equals("Some String"));
+
+        // Set membership
+        java.util.Set<Payslip> set = new java.util.HashSet<>();
+        set.add(p1);
+        set.add(p1Same); // should be deduplicated
+        set.add(p2DifferentId);
+        assertEquals("HashSet size is 2 after adding duplicate", 2, set.size());
     }
 
     private static void testPayslipGeneratorSequencing() {
