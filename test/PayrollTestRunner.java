@@ -36,6 +36,7 @@ public class PayrollTestRunner {
         testPayslipGeneratorSequencing();
         testPayslipGeneratorConcurrencyAndIdManagement();
         testPayrollHistoryStorageAndRetrieval();
+        testPayrollHistoryDefensiveGuardsAndRemoval();
         testPayrollHistoryFilteringByEmployeeId();
         testPayrollManagerIntegration();
         testPayrollManagerEmployeeNotFound();
@@ -348,6 +349,57 @@ public class PayrollTestRunner {
         assertTrue("History is not empty after add", !history.isEmpty());
         assertEquals("Record count is 1", 1, history.getRecordCount());
         assertEquals("First slip matches", slip, history.getHistory().get(0));
+    }
+
+    private static void testPayrollHistoryDefensiveGuardsAndRemoval() {
+        System.out.println("\n--- Testing Payroll History Defensive Guards & Removal ---");
+        PayrollHistory history = new PayrollHistory();
+        Employee emp = new FullTimeEmployee(110, "Defensive Test", "Legal", 70000.0);
+        Payslip slip = PayslipGenerator.generate(emp);
+
+        // Test 1: Null check
+        boolean caughtNull = false;
+        try {
+            history.addPayslip(null);
+        } catch (IllegalArgumentException e) {
+            caughtNull = true;
+        }
+        assertTrue("Reject null payslip in history", caughtNull);
+
+        // Test 2: Add valid slip
+        history.addPayslip(slip);
+        assertEquals("Latest payslip matches added slip", slip, history.getLatestPayslip());
+        assertTrue("hasPayslip returns true for existing ID", history.hasPayslip(slip.getPayslipId()));
+
+        // Test 3: Duplicate ID check
+        boolean caughtDuplicate = false;
+        try {
+            history.addPayslip(slip);
+        } catch (IllegalArgumentException e) {
+            caughtDuplicate = true;
+        }
+        assertTrue("Reject duplicate payslip ID in history", caughtDuplicate);
+
+        // Test 4: Unmodifiable list check
+        boolean caughtMutation = false;
+        try {
+            history.getHistory().clear();
+        } catch (UnsupportedOperationException e) {
+            caughtMutation = true;
+        }
+        assertTrue("External mutation blocked via unmodifiable list", caughtMutation);
+
+        // Test 5: Removal
+        boolean removed = history.removePayslip(slip.getPayslipId());
+        assertTrue("Payslip removed successfully", removed);
+        assertEquals("History size 0 after removal", 0, history.getRecordCount());
+        assertTrue("History is empty after removal", history.isEmpty());
+
+        // Test 6: Clear history
+        history.addPayslip(slip);
+        assertEquals("History count 1", 1, history.getRecordCount());
+        history.clearHistory();
+        assertEquals("History count 0 after clear", 0, history.getRecordCount());
     }
 
     private static void testPayrollHistoryFilteringByEmployeeId() {
