@@ -41,6 +41,7 @@ public class PayrollTestRunner {
         testPayrollHistoryMultiCriteriaSearch();
         testPayrollHistoryAnalyticsAndFinancialSummary();
         testPayrollManagerIntegration();
+        testPayrollManagerRobustValidationAndPeriodSupport();
         testPayrollManagerEmployeeNotFound();
 
         System.out.println("\n===============================================================");
@@ -531,6 +532,65 @@ public class PayrollTestRunner {
             assertEquals("History contains recorded slip", 1, history.getRecordCount());
         } catch (Exception e) {
             assertTrue("PayrollManager threw unexpected exception: " + e.getMessage(), false);
+        }
+    }
+
+    private static void testPayrollManagerRobustValidationAndPeriodSupport() {
+        System.out.println("\n--- Testing Payroll Manager Robust Validation & Period Support ---");
+        EmployeeManager empMgr = new EmployeeManager();
+        PayrollHistory history = new PayrollHistory();
+
+        // 1. Dependency checks
+        boolean caughtNullEmpMgr = false;
+        try {
+            new PayrollManager(null, history);
+        } catch (IllegalArgumentException e) {
+            caughtNullEmpMgr = true;
+        }
+        assertTrue("Reject null EmployeeManager in PayrollManager", caughtNullEmpMgr);
+
+        boolean caughtNullHistory = false;
+        try {
+            new PayrollManager(empMgr, null);
+        } catch (IllegalArgumentException e) {
+            caughtNullHistory = true;
+        }
+        assertTrue("Reject null PayrollHistory in PayrollManager", caughtNullHistory);
+
+        PayrollManager manager = new PayrollManager(empMgr, history);
+
+        // 2. Invalid employee ID check (<= 0)
+        boolean caughtInvalidId = false;
+        try {
+            manager.generatePayslip(0);
+        } catch (IllegalArgumentException e) {
+            caughtInvalidId = true;
+        } catch (Exception e) {
+            caughtInvalidId = false;
+        }
+        assertTrue("Reject zero ID in generatePayslip", caughtInvalidId);
+
+        // 3. Generate with explicit period date
+        try {
+            Employee emp = new FullTimeEmployee(601, "Selina Kyle", "Operations", 65000.0);
+            empMgr.addEmployee(emp);
+
+            java.time.LocalDate pastPeriod = java.time.LocalDate.of(2026, 5, 1);
+            Payslip slip = manager.generatePayslip(601, pastPeriod);
+
+            assertEquals("Explicit period preserved via manager", pastPeriod, slip.getPayPeriodDate());
+            assertEquals("Slip findable via manager", slip, manager.findPayslip(slip.getPayslipId()));
+        } catch (Exception e) {
+            assertTrue("Failed to generate with explicit period: " + e.getMessage(), false);
+        }
+
+        // 4. Generate directly from Employee object
+        try {
+            Employee empDirect = new PartTimeEmployee(602, "Harvey Dent", "Legal", 42000.0);
+            Payslip directSlip = manager.generatePayslip(empDirect);
+            assertEquals("Direct generation preserves ID", 602, directSlip.getEmployeeId());
+        } catch (Exception e) {
+            assertTrue("Failed direct employee generation: " + e.getMessage(), false);
         }
     }
 
