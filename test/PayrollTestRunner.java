@@ -29,6 +29,7 @@ public class PayrollTestRunner {
         testFullTimeEmployeePayslipCalculations();
         testPartTimeEmployeePayslipCalculations();
         testHighBracketPartTimeEmployeePayslip();
+        testPayslipTemporalAndOrdering();
         testPayslipGeneratorSequencing();
         testPayrollHistoryStorageAndRetrieval();
         testPayrollHistoryFilteringByEmployeeId();
@@ -131,6 +132,22 @@ public class PayrollTestRunner {
         assertEquals("PT High Gross", 108000.0, slip.getGrossSalary());
         assertEquals("PT High Tax (20%)", 21600.0, slip.getTax());
         assertEquals("PT High Net Salary", 75600.0, slip.getNetSalary());
+    }
+
+    private static void testPayslipTemporalAndOrdering() {
+        System.out.println("\n--- Testing Payslip Temporal & Ordering Features ---");
+        java.time.LocalDate d1 = java.time.LocalDate.of(2026, 1, 15);
+        java.time.LocalDate d2 = java.time.LocalDate.of(2026, 2, 15);
+
+        Payslip s1 = new Payslip("PS-100", 1, "John", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500, d1);
+        Payslip s2 = new Payslip("PS-101", 1, "John", "IT", "Full-Time", 50000, 10000, 5000, 65000, 6000, 6500, 12500, 52500, d2);
+
+        assertEquals("Pay period date preserved", d1, s1.getPayPeriodDate());
+        assertTrue("Generated timestamp present", s1.getGeneratedAt() != null);
+        assertEquals("Formatted pay period", "January 2026", s1.getFormattedPayPeriod());
+        assertTrue("Natural ordering s1 < s2", s1.compareTo(s2) < 0);
+        assertTrue("Natural ordering s2 > s1", s2.compareTo(s1) > 0);
+        assertTrue("Self comparison s1 == s1", s1.compareTo(s1) == 0);
     }
 
     private static void testPayslipGeneratorSequencing() {
