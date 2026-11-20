@@ -39,6 +39,7 @@ public class PayrollTestRunner {
         testPayrollHistoryDefensiveGuardsAndRemoval();
         testPayrollHistoryFilteringByEmployeeId();
         testPayrollHistoryMultiCriteriaSearch();
+        testPayrollHistoryAnalyticsAndFinancialSummary();
         testPayrollManagerIntegration();
         testPayrollManagerEmployeeNotFound();
 
@@ -475,6 +476,44 @@ public class PayrollTestRunner {
         assertEquals("Recent 2 returned", 2, recent2.size());
         assertEquals("Most recent is s3", s3, recent2.get(0));
         assertEquals("Second most recent is s2", s2, recent2.get(1));
+    }
+
+    private static void testPayrollHistoryAnalyticsAndFinancialSummary() {
+        System.out.println("\n--- Testing Payroll History Analytics & Financial Summaries ---");
+        PayrollHistory history = new PayrollHistory();
+
+        // Check empty state averages
+        assertEquals("Empty history average net is 0", 0.0, history.getAverageNetSalary());
+        assertEquals("Empty history total gross is 0", 0.0, history.getTotalGrossDisbursed());
+
+        // Slip 1: FT Basic 60,000 -> Gross: 78,000, PF: 7,200, Tax: 7,800, Total Ded: 15,000, Net: 63,000
+        Employee e1 = new FullTimeEmployee(501, "Edward Nygma", "Analytics", 60000.0);
+        Payslip s1 = PayslipGenerator.generate(e1);
+        history.addPayslip(s1);
+
+        // Slip 2: PT Basic 40,000 -> Gross: 48,000, PF: 4,800, Tax: 0, Total Ded: 4,800, Net: 43,200
+        Employee e2 = new PartTimeEmployee(502, "Oswald Cobblepot", "Logistics", 40000.0);
+        Payslip s2 = PayslipGenerator.generate(e2);
+        history.addPayslip(s2);
+
+        // Expected Aggregates:
+        // Total Gross: 78,000 + 48,000 = 126,000.0
+        // Total PF: 7,200 + 4,800 = 12,000.0
+        // Total Tax: 7,800 + 0 = 7,800.0
+        // Total Deductions: 15,000 + 4,800 = 19,800.0
+        // Total Net: 63,000 + 43,200 = 106,200.0
+        // Average Net: 106,200 / 2 = 53,100.0
+
+        assertEquals("Total Gross Disbursed", 126000.0, history.getTotalGrossDisbursed());
+        assertEquals("Total PF Collected", 12000.0, history.getTotalPfCollected());
+        assertEquals("Total Tax Collected", 7800.0, history.getTotalTaxCollected());
+        assertEquals("Total Deductions Collected", 19800.0, history.getTotalDeductionsCollected());
+        assertEquals("Total Net Paid", 106200.0, history.getTotalNetPaid());
+        assertEquals("Average Net Salary", 53100.0, history.getAverageNetSalary());
+
+        // Display summary should run cleanly without exception
+        history.displayFinancialSummary();
+        history.displayHistoryByEmployee(501);
     }
 
     private static void testPayrollManagerIntegration() {

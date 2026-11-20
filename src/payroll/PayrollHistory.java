@@ -7,14 +7,16 @@ import java.util.List;
 /**
  * Manages the chronological archive of generated employee payslips.
  * Employs standard Java Collections (ArrayList) to provide dynamic storage,
- * unmodifiable views, and defensive integrity checks.
+ * unmodifiable views, multi-criteria searching, and financial summary analytics.
  *
  * Demonstrates:
  * - Java Collections Framework: Utilizes ArrayList for dynamic sequential storage.
  * - Defensive Encapsulation: Exposes unmodifiable collection views to prevent unauthorized mutations.
- * - Integrity Protection: Guards against null records and duplicate payslip IDs.
+ * - Financial Analytics: Computes cumulative payroll metrics (gross, taxes, PF, net, averages).
  */
 public class PayrollHistory {
+    private static final int TABLE_WIDTH = 102;
+
     private final List<Payslip> historyList;
 
     public PayrollHistory() {
@@ -23,9 +25,6 @@ public class PayrollHistory {
 
     /**
      * Records a payslip into history after defensive integrity checks.
-     *
-     * @param payslip The validated payslip to archive.
-     * @throws IllegalArgumentException if payslip is null or duplicate ID exists.
      */
     public void addPayslip(Payslip payslip) {
         if (payslip == null) {
@@ -84,7 +83,6 @@ public class PayrollHistory {
 
     /**
      * Finds a single payslip by its reference ID (case-insensitive).
-     * Returns null if not found.
      */
     public Payslip findPayslipById(String payslipId) {
         if (payslipId == null || payslipId.trim().isEmpty()) {
@@ -191,7 +189,7 @@ public class PayrollHistory {
     }
 
     /**
-     * Removes a payslip record by ID. Returns true if removed, false otherwise.
+     * Removes a payslip record by ID.
      */
     public boolean removePayslip(String payslipId) {
         if (payslipId == null || payslipId.trim().isEmpty()) {
@@ -213,27 +211,122 @@ public class PayrollHistory {
         historyList.clear();
     }
 
+    // Financial Analytics Methods
+    public double getTotalGrossDisbursed() {
+        double total = 0.0;
+        for (Payslip p : historyList) {
+            total += p.getGrossSalary();
+        }
+        return total;
+    }
+
+    public double getTotalPfCollected() {
+        double total = 0.0;
+        for (Payslip p : historyList) {
+            total += p.getPf();
+        }
+        return total;
+    }
+
+    public double getTotalTaxCollected() {
+        double total = 0.0;
+        for (Payslip p : historyList) {
+            total += p.getTax();
+        }
+        return total;
+    }
+
+    public double getTotalDeductionsCollected() {
+        double total = 0.0;
+        for (Payslip p : historyList) {
+            total += p.getTotalDeductions();
+        }
+        return total;
+    }
+
+    public double getTotalNetPaid() {
+        double total = 0.0;
+        for (Payslip p : historyList) {
+            total += p.getNetSalary();
+        }
+        return total;
+    }
+
+    public double getAverageNetSalary() {
+        if (historyList.isEmpty()) {
+            return 0.0;
+        }
+        return getTotalNetPaid() / historyList.size();
+    }
+
+    /**
+     * Displays complete transaction history with precise table borders.
+     */
     public void displayHistory() {
         if (historyList.isEmpty()) {
             System.out.println("\n[!] No payroll history available yet. Generate payslips first.");
             return;
         }
 
-        System.out.println("\n" + "=".repeat(95));
-        System.out.println("                             PAYROLL TRANSACTION HISTORY");
-        System.out.println("=".repeat(95));
+        printTable(historyList, "PAYROLL TRANSACTION HISTORY");
+    }
+
+    /**
+     * Displays transaction history filtered for a specific employee ID.
+     */
+    public void displayHistoryByEmployee(int employeeId) {
+        List<Payslip> employeeSlips = getHistoryByEmployeeId(employeeId);
+        if (employeeSlips.isEmpty()) {
+            System.out.println("\n[!] No payroll records found for Employee ID: " + employeeId);
+            return;
+        }
+        printTable(employeeSlips, "PAYROLL HISTORY FOR EMPLOYEE ID: " + employeeId);
+    }
+
+    /**
+     * Displays cumulative financial metrics summary.
+     */
+    public void displayFinancialSummary() {
+        if (historyList.isEmpty()) {
+            System.out.println("\n[!] No financial summary available. History is empty.");
+            return;
+        }
+
+        System.out.println("\n+-------------------------------------------------------------+");
+        System.out.println("|               CUMULATIVE PAYROLL FINANCIAL SUMMARY          |");
+        System.out.println("+-------------------------------------------------------------+");
+        System.out.printf("| Total Payslips Issued:             %24d |\n", historyList.size());
+        System.out.printf("| Total Gross Disbursed:             Rs. %20.2f |\n", getTotalGrossDisbursed());
+        System.out.printf("| Total Provident Fund (PF):         Rs. %20.2f |\n", getTotalPfCollected());
+        System.out.printf("| Total Income Tax Withheld:         Rs. %20.2f |\n", getTotalTaxCollected());
+        System.out.printf("| Total Deductions Applied:          Rs. %20.2f |\n", getTotalDeductionsCollected());
+        System.out.println("+-------------------------------------------------------------+");
+        System.out.printf("| TOTAL NET DISBURSED:               Rs. %20.2f |\n", getTotalNetPaid());
+        System.out.printf("| AVERAGE NET SALARY PER SLIP:       Rs. %20.2f |\n", getAverageNetSalary());
+        System.out.println("+-------------------------------------------------------------+");
+    }
+
+    private void printTable(List<Payslip> records, String title) {
+        System.out.println("\n" + "=".repeat(TABLE_WIDTH));
+        int padLeft = (TABLE_WIDTH - title.length()) / 2;
+        System.out.println(" ".repeat(Math.max(0, padLeft)) + title);
+        System.out.println("=".repeat(TABLE_WIDTH));
         System.out.printf("%-9s | %-5s | %-16s | %-10s | %10s | %10s | %10s | %-11s\n",
                 "Slip ID", "EmpID", "Employee Name", "Type", "Gross", "Deductions", "Net Pay", "Date");
-        System.out.println("-".repeat(95));
+        System.out.println("-".repeat(TABLE_WIDTH));
 
-        for (Payslip p : historyList) {
+        for (Payslip p : records) {
+            String truncName = p.getEmployeeName();
+            if (truncName.length() > 16) {
+                truncName = truncName.substring(0, 14) + "..";
+            }
             System.out.printf("%-9s | %-5d | %-16s | %-10s | %10.2f | %10.2f | %10.2f | %-11s\n",
-                    p.getPayslipId(), p.getEmployeeId(), p.getEmployeeName(),
+                    p.getPayslipId(), p.getEmployeeId(), truncName,
                     p.getEmployeeType(), p.getGrossSalary(), p.getTotalDeductions(),
                     p.getNetSalary(), p.getGenerationDate());
         }
-        System.out.println("=".repeat(95));
-        System.out.println("Total Records: " + historyList.size());
+        System.out.println("=".repeat(TABLE_WIDTH));
+        System.out.println("Total Records: " + records.size());
     }
 
     public boolean isEmpty() {
